@@ -9,6 +9,28 @@ from tkinter import filedialog, messagebox
 import threading
 import globals
 import shutil
+import librosa
+import time
+from track_timeline import grid_state, ROWS, COLUMNS, INTERVAL_DURATION
+
+def detect_bpm(track_index):
+    file_path = globals.track_file_paths[track_index]
+    if file_path:
+        try:
+            y, sr = librosa.load(file_path)
+
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            bpm = round(float(tempo))
+
+            messagebox.showinfo(title="BPM Detection", message=f"Track {track_index + 1} BPM: {bpm}")
+            return bpm
+        except Exception as e:
+            print(f"Error detecting BPM for track {track_index + 1}: {e}")
+            messagebox.showerror(title="BPM Detection Error", message=f"Could not detect BPM for Track {track_index + 1}.")
+            return None
+    else:
+        messagebox.showwarning(title="No File Loaded", message=f"No audio file loaded in Track {track_index + 1}.")
+        return None
 
 def load_audio(track_index, file_path=None):
     if not file_path:
@@ -33,7 +55,8 @@ def load_audio(track_index, file_path=None):
         duration_formatted = format_duration(duration_seconds)
         globals.track_labels[track_index].config(text=f"{filename} ({duration_formatted})")
 
-        globals.last_mod_times[track_index] = os.path.getmtime(dest_path)  
+        globals.last_mod_times[track_index] = os.path.getmtime(dest_path)
+        globals.update_total_length()  # Update total length when a new track is loaded
     except Exception as e:
         messagebox.showerror("Load Audio", f"Failed to load audio file:\n{e}")
 
@@ -88,26 +111,41 @@ def start_volume_meter_updates():
 
 def play_all_audio():
     apply_bpm_change()
+    globals.playback_start_time = time.time()
+    cursor_ms = globals.cursor_position * 1000  # Convert cursor position to milliseconds
     for i, track in enumerate(globals.tracks):
         if track:
-            sound = convert_to_pygame_sound(track)
+            if cursor_ms >= len(track):
+                continue  # Skip if cursor position is beyond track length
+            # Trim the track to start from cursor_position
+            track_to_play = track[cursor_ms:]
+            sound = convert_to_pygame_sound(track_to_play)
             globals.channels[i].stop()
             globals.channels[i].play(sound)
             globals.channels[i].set_volume(globals.volume_levels[i])
             globals.paused_states[i] = False
     start_volume_meter_updates()
+    globals.update_current_playback_time()
 
 def pause_audio():
     for i, channel in enumerate(globals.channels):
         if channel.get_busy():
             channel.pause()
             globals.paused_states[i] = True
+    if globals.playback_start_time:
+        globals.paused_time = time.time() - globals.playback_start_time
+    globals.playback_start_time = None  # Stop updating current playback time
 
 def resume_audio():
+    if globals.paused_time:
+        globals.cursor_position += globals.paused_time
+        globals.paused_time = None
     for i, channel in enumerate(globals.channels):
         if globals.paused_states[i]:
             channel.unpause()
             globals.paused_states[i] = False
+    globals.playback_start_time = time.time()  # Resume updating current playback time
+    globals.update_current_playback_time()
 
 def adjust_volume(channel_index, volume):
     volume = float(volume)
@@ -171,24 +209,44 @@ def load_project():
                 globals.mixer_sliders[i].set(volume)
                 globals.channels[i].set_volume(volume)
             messagebox.showinfo("Load Project", "Project loaded successfully!")
+            globals.update_total_length()
         except Exception as e:
             messagebox.showerror("Load Project", f"Failed to load project:\n{e}")
 
 def export_project_as_mp3():
-    mixed_audio = None
-    for i, track in enumerate(globals.tracks):
+    total_duration_ms = INTERVAL_DURATION * COLUMNS * 1000  # Total duration in milliseconds
+    final_audio = AudioSegment.silent(duration=total_duration_ms)  # Initialize final audio with silence
+
+    for row in range(ROWS):
+        track = globals.tracks[row]
         if track:
-            volume_level = globals.volume_levels[i]
+            # Adjust volume according to the volume slider
+            volume_level = globals.volume_levels[row]
             gain_db = 20 * math.log10(volume_level) if volume_level > 0 else -float('inf')
             adjusted_track = track.apply_gain(gain_db)
-            if mixed_audio is None:
-                mixed_audio = adjusted_track
-            else:
-                mixed_audio = mixed_audio.overlay(adjusted_track)
-    if mixed_audio:
+
+            # For each interval in the timeline
+            for col in range(COLUMNS):
+                cell = grid_state[row][col]
+                if cell["active"]:
+                    start_time_ms = col * INTERVAL_DURATION * 1000  # Start time of the interval
+                    segment_duration_ms = INTERVAL_DURATION * 1000   # Duration of the interval
+
+                    # Extract the segment from the beginning of the track
+                    segment = adjusted_track[:segment_duration_ms]
+
+                    # Pad the segment with silence if it's shorter than the interval
+                    if len(segment) < segment_duration_ms:
+                        segment += AudioSegment.silent(duration=(segment_duration_ms - len(segment)))
+
+                    # Overlay the segment onto the final audio at the correct position
+                    final_audio = final_audio.overlay(segment, position=start_time_ms)
+
+    if final_audio:
         file_path = filedialog.asksaveasfilename(defaultextension=".mp3", filetypes=[("MP3 Files", "*.mp3")])
         if file_path:
-            mixed_audio.export(file_path, format="mp3")
+            final_audio.export(file_path, format="mp3")
             messagebox.showinfo("Export Project", "Project exported successfully!")
     else:
         messagebox.showwarning("Export Project", "No tracks loaded to export.")
+
