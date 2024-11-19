@@ -6,6 +6,7 @@ import threading
 import globals
 import os
 
+
 def open_trim_window():
     trim_window = tk.Toplevel()
     trim_window.title("Trim Audio")
@@ -37,6 +38,7 @@ def open_trim_window():
     apply_button = ttk.Button(buttons_frame, text="Apply Trim", command=lambda: apply_trim(selected_track.get(), start_time.get(), end_time.get(), trim_window))
     apply_button.grid(row=0, column=1, padx=5)
 
+
 def preview_trim(track_index_str, start, end):
     try:
         track_index = int(track_index_str.split()[1]) - 1
@@ -60,6 +62,7 @@ def preview_trim(track_index_str, start, end):
 
     except Exception as e:
         messagebox.showerror("Preview Error", f"Failed to preview trimmed audio:\n{e}")
+
 
 def apply_trim(track_index_str, start, end, window):
     try:
@@ -92,11 +95,14 @@ def apply_trim(track_index_str, start, end, window):
         filename = os.path.basename(file_path)
         globals.track_labels[track_index].config(text=f"{filename} ({duration_formatted})")
 
+        globals.update_total_length()  # Update total length after trimming
+
         messagebox.showinfo("Trim Successful", f"{track_index_str} has been trimmed.")
         window.destroy()
 
     except Exception as e:
         messagebox.showerror("Trim Error", f"Failed to apply trim:\n{e}")
+
 
 def format_duration(seconds):
     minutes = int(seconds) // 60
