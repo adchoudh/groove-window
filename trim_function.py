@@ -95,7 +95,7 @@ def apply_trim(track_index_str, start, end, window):
         filename = os.path.basename(file_path)
         globals.track_labels[track_index].config(text=f"{filename} ({duration_formatted})")
 
-        globals.update_total_length()  # Update total length after trimming
+        globals.update_total_length() 
 
         messagebox.showinfo("Trim Successful", f"{track_index_str} has been trimmed.")
         window.destroy()
