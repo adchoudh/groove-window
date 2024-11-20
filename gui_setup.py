@@ -119,7 +119,6 @@ def setup_main_window():
     export_button = ttk.Button(control_frame, text="Export as MP3", command=export_project_as_mp3)
     export_button.grid(row=0, column=7, padx=10)
 
-    # Cursor Controls in control_frame
     cursor_entry_label = ttk.Label(control_frame, text="Cursor Position (s):")
     cursor_entry_label.grid(row=0, column=8, padx=5)
 
@@ -135,23 +134,20 @@ def setup_main_window():
     current_time_label.grid(row=0, column=11, padx=10)
     globals.current_time_label = current_time_label
 
-    # Total Length Display
     total_length_label = ttk.Label(control_frame, text="Total Length: 0:00")
     total_length_label.grid(row=0, column=12, padx=10)
     globals.total_length_label = total_length_label
 
-    # Add timeline play button to control_frame
     timeline_play_button = ttk.Button(control_frame, text="Play Timeline", command=start_timeline_playback)
     timeline_play_button.grid(row=0, column=13, padx=10)
 
-    # Left Frame (contains track and mixer frames)
+    # Left Frame
     left_frame = ttk.Frame(globals.window)
     left_frame.grid(row=1, column=0, sticky="nsew")
     left_frame.grid_rowconfigure(0, weight=1)
     left_frame.grid_rowconfigure(1, weight=1)
     left_frame.grid_columnconfigure(0, weight=1)
 
-    # Track Frame
     track_frame = ttk.Frame(left_frame, padding="10")
     track_frame.grid(row=0, column=0, sticky="nsew")
     track_frame.grid_columnconfigure(0, weight=1)
@@ -169,7 +165,6 @@ def setup_main_window():
         detect_bpm_button = ttk.Button(frame, text="Detect BPM", command=lambda t=track: detect_bpm(t))
         detect_bpm_button.pack(side="left", padx=5)
 
-    # Mixer Frame
     mixer_frame = ttk.Frame(left_frame, padding="10")
     mixer_frame.grid(row=1, column=0, sticky="nsew")
     mixer_frame.grid_columnconfigure(0, weight=1)
@@ -186,7 +181,7 @@ def setup_main_window():
         row = i // 5
         column = i % 5
         channel_frame = ttk.Frame(mixer_inner_frame)
-        channel_frame.grid(row=row, column=column, padx=5, pady=5)
+        channel_frame.grid(row=row, column=column, padx=3, pady=3)  
         ttk.Label(channel_frame, text=f"Channel {i + 1}").pack()
 
         slider_meter_frame = ttk.Frame(channel_frame)
@@ -195,7 +190,7 @@ def setup_main_window():
         mixer_slider = ttk.Scale(
             slider_meter_frame,
             orient="horizontal",
-            length=150,
+            length=75,  # Reduced slider length
             from_=0.0,
             to=1.0,
             command=lambda vol, idx=i: adjust_volume(idx, vol)
@@ -208,45 +203,62 @@ def setup_main_window():
         volume_meter = ttk.Progressbar(
             slider_meter_frame,
             orient="horizontal",
-            length=150,
+            length=75,  # Reduced progress bar length
             mode="determinate",
             maximum=100
         )
-        volume_meter.pack(pady=2)
+        volume_meter.pack(pady=1)
         globals.volume_meters.append(volume_meter)
 
         db_label = ttk.Label(channel_frame, text="-inf dB")
         db_label.pack()
         globals.db_labels.append(db_label)
 
+
+    def open_keyboard():
+        from keyboard_window import open_keyboard_window
+        open_keyboard_window()
+
+
     button_frame = ttk.Frame(mixer_frame)
     button_frame.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
 
+    # Button: Session Audios
     open_temp_button = ttk.Button(button_frame, text="Session Audios", command=open_temp_directory)
     open_temp_button.pack(side="top", pady=5)
-
-    equalizer_button = ttk.Button(button_frame, text="Equalizer", command=open_equalizer)
-    equalizer_button.pack(side="top", pady=5)
 
     trim_button = ttk.Button(button_frame, text="Trim", command=open_trim_window)
     trim_button.pack(side="top", pady=5)
 
-    # Timeline Frame (placed to the right of the left_frame)
+    equalizer_button = ttk.Button(button_frame, text="Equalizer", command=open_equalizer)
+    equalizer_button.pack(side="top", pady=5)
+
+    # Button: Keyboard (new button)
+    keyboard_button = ttk.Button(button_frame, text="Keyboard", command=open_keyboard)
+    keyboard_button.pack(side="top", pady=5)
+
+    # Button: Drum Pad (new button)
+    drum_pad_button = ttk.Button(button_frame, text="Drum Pad", command=lambda: print("Drum Pad clicked"))
+    drum_pad_button.pack(side="top", pady=5)
+
+    # Button: Play Timeline
+    play_timeline_button = ttk.Button(button_frame, text="Play Timeline", command=start_timeline_playback)
+    play_timeline_button.pack(side="top", pady=5)
+
     timeline_frame = ttk.Frame(globals.window)
     timeline_frame.grid(row=1, column=1, sticky="nsew")
     timeline_frame.grid_rowconfigure(0, weight=1)
     timeline_frame.grid_columnconfigure(0, weight=1)
     setup_track_timeline(timeline_frame)
 
-    # Configure window resizing behavior
     globals.window.grid_rowconfigure(1, weight=1)
     globals.window.grid_columnconfigure(0, weight=1)
     globals.window.grid_columnconfigure(1, weight=1)
 
-    # Assign labels to globals
     globals.current_time_label = current_time_label
     globals.total_length_label = total_length_label
 
     check_for_updates()
     globals.update_current_playback_time()
     globals.window.mainloop()
+
