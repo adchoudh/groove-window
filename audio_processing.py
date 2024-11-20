@@ -34,7 +34,11 @@ def detect_bpm(track_index):
 
 def load_audio(track_index, file_path=None):
     if not file_path:
-        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3")])
+        # Open the file dialog in the Session Audios folder by default
+        file_path = filedialog.askopenfilename(
+            initialdir=globals.TEMP_DIR,
+            filetypes=[("Audio Files", "*.wav *.mp3")]
+        )
         if not file_path:
             return
         dest_filename = f"track_{track_index + 1}_{os.path.basename(file_path)}"
@@ -44,6 +48,7 @@ def load_audio(track_index, file_path=None):
         dest_path = file_path
     try:
         audio = AudioSegment.from_file(dest_path)
+        print(f"Loaded audio for Track {track_index + 1}: Duration = {audio.duration_seconds}s, Frame Rate = {audio.frame_rate}Hz")
         globals.original_tracks[track_index] = audio
         globals.tracks[track_index] = audio
         globals.track_file_paths[track_index] = dest_path
@@ -66,8 +71,10 @@ def format_duration(seconds):
     return f"{minutes}:{seconds:02d}"
 
 def change_speed(sound, speed=1.0):
-    new_sound = sound._spawn(sound.raw_data, overrides={"frame_rate": int(sound.frame_rate * speed)})
-    return new_sound.set_frame_rate(44100)
+    new_frame_rate = int(sound.frame_rate * speed)
+    print(f"Changing speed: Original frame rate = {sound.frame_rate}, New frame rate = {new_frame_rate}")
+    new_sound = sound._spawn(sound.raw_data, overrides={"frame_rate": new_frame_rate})
+    return new_sound.set_frame_rate(sound.frame_rate)
 
 def apply_bpm_change():
     current_bpm = globals.bpm_var.get()
@@ -77,6 +84,10 @@ def apply_bpm_change():
             globals.tracks[i] = change_speed(original_track, speed_ratio)
 
 def convert_to_pygame_sound(audio_segment):
+    # Ensure audio is in 16-bit signed format for pygame
+    if audio_segment.sample_width != 2:
+        print(f"Converting sample width from {audio_segment.sample_width} to 2")
+        audio_segment = audio_segment.set_sample_width(2)
     wav_io = io.BytesIO()
     audio_segment.export(wav_io, format="wav")
     wav_io.seek(0)
@@ -110,22 +121,28 @@ def start_volume_meter_updates():
     meter_thread.start()
 
 def play_all_audio():
-    apply_bpm_change()
-    globals.playback_start_time = time.time()
-    cursor_ms = globals.cursor_position * 1000  # Convert cursor position to milliseconds
-    for i, track in enumerate(globals.tracks):
-        if track:
-            if cursor_ms >= len(track):
-                continue  # Skip if cursor position is beyond track length
-            # Trim the track to start from cursor_position
-            track_to_play = track[cursor_ms:]
-            sound = convert_to_pygame_sound(track_to_play)
-            globals.channels[i].stop()
-            globals.channels[i].play(sound)
-            globals.channels[i].set_volume(globals.volume_levels[i])
-            globals.paused_states[i] = False
-    start_volume_meter_updates()
-    globals.update_current_playback_time()
+    try:
+        apply_bpm_change()
+        globals.playback_start_time = time.time()
+        cursor_ms = globals.cursor_position * 1000  # Convert cursor position to milliseconds
+        for i, track in enumerate(globals.tracks):
+            if track:
+                print(f"Track {i + 1} length: {len(track)} ms")
+                if cursor_ms >= len(track):
+                    print(f"Skipping Track {i + 1} because cursor is beyond track length.")
+                    continue  # Skip if cursor position is beyond track length
+                # Trim the track to start from cursor_position
+                track_to_play = track[cursor_ms:]
+                sound = convert_to_pygame_sound(track_to_play)
+                globals.channels[i].stop()
+                globals.channels[i].play(sound)
+                globals.channels[i].set_volume(globals.volume_levels[i])
+                globals.paused_states[i] = False
+        start_volume_meter_updates()
+        globals.update_current_playback_time()
+    except Exception as e:
+        messagebox.showerror("Playback Error", f"An error occurred during playback:\n{e}")
+        print(f"Playback Error: {e}")
 
 def pause_audio():
     for i, channel in enumerate(globals.channels):
@@ -155,8 +172,11 @@ def adjust_volume(channel_index, volume):
 def save_project():
     project_data = {
         "tracks": [],
+        "track_durations": globals.track_durations,
+        "volume_levels": globals.volume_levels,
+        "grid_state": [[cell["active"] for cell in row] for row in grid_state],  # Save only `active` states
+        "cursor_position": globals.cursor_position,
         "bpm": globals.bpm_var.get(),
-        "volume_levels": globals.volume_levels
     }
     file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Files", "*.json")])
     if file_path:
@@ -169,18 +189,21 @@ def save_project():
             if os.path.exists(session_audios_dst):
                 shutil.rmtree(session_audios_dst)
             shutil.copytree(session_audios_src, session_audios_dst)
+            
             for track_path in globals.track_file_paths:
                 if track_path:
                     rel_path = os.path.relpath(track_path, session_audios_src)
                     project_data["tracks"].append(rel_path)
                 else:
                     project_data["tracks"].append(None)
+
             json_file_path = os.path.join(project_dir, os.path.basename(file_path))
             with open(json_file_path, "w") as f:
                 json.dump(project_data, f)
             messagebox.showinfo("Save Project", "Project saved successfully!")
         except Exception as e:
             messagebox.showerror("Save Project", f"Failed to save project:\n{e}")
+
 
 def load_project():
     file_path = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
@@ -189,11 +212,14 @@ def load_project():
         try:
             with open(file_path, "r") as f:
                 project_data = json.load(f)
+            
             session_audios_src = os.path.join(project_dir, "session_audios")
             session_audios_dst = globals.TEMP_DIR
             if os.path.exists(session_audios_dst):
                 shutil.rmtree(session_audios_dst)
             shutil.copytree(session_audios_src, session_audios_dst)
+            
+            # Load track files and metadata
             for i, rel_track_path in enumerate(project_data["tracks"]):
                 if rel_track_path:
                     track_path = os.path.join(session_audios_dst, rel_track_path)
@@ -203,15 +229,31 @@ def load_project():
                     globals.original_tracks[i] = None
                     globals.tracks[i] = None
                     globals.track_labels[i].config(text=f"Track {i + 1}")
-            globals.bpm_var.set(project_data["bpm"])
-            for i, volume in enumerate(project_data["volume_levels"]):
-                globals.volume_levels[i] = volume
+            
+            globals.track_durations = project_data.get("track_durations", [0.0] * 10)
+            globals.volume_levels = project_data.get("volume_levels", [1.0] * 10)
+            
+            # Restore volume levels
+            for i, volume in enumerate(globals.volume_levels):
                 globals.mixer_sliders[i].set(volume)
                 globals.channels[i].set_volume(volume)
-            messagebox.showinfo("Load Project", "Project loaded successfully!")
+            
+            # Restore grid state
+            saved_grid_state = project_data["grid_state"]
+            for row in range(ROWS):
+                for col in range(COLUMNS):
+                    grid_state[row][col]["active"] = saved_grid_state[row][col]
+                    grid_state[row][col]["button"].configure(bg="blue" if saved_grid_state[row][col] else "white")
+            
+            # Restore playback details
+            globals.cursor_position = project_data.get("cursor_position", 0.0)
+            globals.bpm_var.set(project_data.get("bpm", 120))
             globals.update_total_length()
+            
+            messagebox.showinfo("Load Project", "Project loaded successfully!")
         except Exception as e:
             messagebox.showerror("Load Project", f"Failed to load project:\n{e}")
+
 
 def export_project_as_mp3():
     total_duration_ms = INTERVAL_DURATION * COLUMNS * 1000  # Total duration in milliseconds
@@ -246,7 +288,20 @@ def export_project_as_mp3():
         file_path = filedialog.asksaveasfilename(defaultextension=".mp3", filetypes=[("MP3 Files", "*.mp3")])
         if file_path:
             final_audio.export(file_path, format="mp3")
-            messagebox.showinfo("Export Project", "Project exported successfully!")
+            messagebox.showinfo("Export Project", "Project exported successfully")
     else:
-        messagebox.showwarning("Export Project", "No tracks loaded to export.")
+        messagebox.showwarning("Export Project", "No tracks loaded to export")
 
+def play_single_track(track_index):
+    track = globals.tracks[track_index]
+    if track:
+        try:
+            sound = convert_to_pygame_sound(track)
+            globals.channels[track_index].stop()
+            globals.channels[track_index].play(sound)
+            globals.channels[track_index].set_volume(globals.volume_levels[track_index])
+        except Exception as e:
+            messagebox.showerror("Play Track Error", f"Failed to play Track {track_index + 1}:\n{e}")
+            print(f"Play Track Error: {e}")
+    else:
+        messagebox.showwarning("Play Track", f"No audio loaded in Track {track_index + 1}")
