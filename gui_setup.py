@@ -214,11 +214,13 @@ def setup_main_window():
         db_label.pack()
         globals.db_labels.append(db_label)
 
-
     def open_keyboard():
         from keyboard_window import open_keyboard_window
         open_keyboard_window()
 
+    def open_drum_pad():
+        from drumpad_window import open_drumpad_window
+        open_drumpad_window()
 
     button_frame = ttk.Frame(mixer_frame)
     button_frame.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
@@ -233,12 +235,12 @@ def setup_main_window():
     equalizer_button = ttk.Button(button_frame, text="Equalizer", command=open_equalizer)
     equalizer_button.pack(side="top", pady=5)
 
-    # Button: Keyboard (new button)
+    # Button: Keyboard
     keyboard_button = ttk.Button(button_frame, text="Keyboard", command=open_keyboard)
     keyboard_button.pack(side="top", pady=5)
 
-    # Button: Drum Pad (new button)
-    drum_pad_button = ttk.Button(button_frame, text="Drum Pad", command=lambda: print("Drum Pad clicked"))
+    # Button: Drum Pad
+    drum_pad_button = ttk.Button(button_frame, text="Drum Pad", command=open_drum_pad)
     drum_pad_button.pack(side="top", pady=5)
 
     # Button: Play Timeline
@@ -261,4 +263,3 @@ def setup_main_window():
     check_for_updates()
     globals.update_current_playback_time()
     globals.window.mainloop()
-
