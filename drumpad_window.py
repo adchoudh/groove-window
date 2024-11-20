@@ -7,7 +7,7 @@ import os
 import globals
 
 def open_drumpad_window():
-    # Don't need it anymore
+    # Don't need to initialize pygame.mixer here if it's already initialized in globals.py
     # pygame.mixer.init()
 
     # Map sound paths to the sounds for the drum
@@ -67,8 +67,6 @@ def open_drumpad_window():
         else:
             print("No sound selected.")
 
-
-
     # Function to start recording
     def start_recording():
         nonlocal is_recording, start_time, recorded_notes
@@ -80,8 +78,6 @@ def open_drumpad_window():
         print("Recording started")
         update_timer()  # Start the stopwatch
 
-
-
     # Function to stop recording
     def stop_recording():
         nonlocal is_recording, timer_update
@@ -92,8 +88,6 @@ def open_drumpad_window():
                 window.after_cancel(timer_update)
                 timer_update = None
             timer_label.config(text="Recording Time: 0:00")
-
-
 
     # Function to update the timer
     def update_timer():
@@ -107,14 +101,11 @@ def open_drumpad_window():
         else:
             timer_label.config(text="Recording Time: 0:00")
 
-
-
     # Function to save the recording
     def save_audio():
         if not recorded_notes:
             messagebox.showwarning("No Recording", "No sounds have been recorded.")
             return
-
 
         max_timestamp = max(timestamp for _, timestamp in recorded_notes)
         output_duration = max_timestamp + 1000 
@@ -148,21 +139,17 @@ def open_drumpad_window():
                 if not overwrite:
                     return
 
-            # Make it the proper format
+            # Ensure standard format
             output_audio.export(file_path, format="wav", parameters=["-ar", "44100", "-ac", "2"])
 
             messagebox.showinfo("Recording Saved",
                                 f"Recording saved as '{os.path.basename(file_path)}' in the Session Audios folder.\n\n"
                                 "You can now load this file into your project using the 'Load Audio' button.")
 
-
-
     ## GUI setup
     window = tk.Toplevel()
     window.title("Drum Pad Recorder")
     window.geometry("800x800")
-
-
 
     # Create virtual drum pads
     def create_drumpad(frame, drumpad_number, label_text, sound_mapping):
@@ -219,7 +206,7 @@ def open_drumpad_window():
     window.bind("<KeyPress>", on_key_press)
 
     def on_close():
-        # Don't need anymore
+        # Don't need to quit the mixer here
         # pygame.mixer.quit()
         window.destroy()
 
