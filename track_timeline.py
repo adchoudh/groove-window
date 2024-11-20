@@ -19,18 +19,24 @@ def setup_track_timeline(window):
     Sets up the 10x5 grid in the main window for track management.
     """
     timeline_frame = tk.Frame(window)
-    timeline_frame.grid(row=10, column=1, rowspan=ROWS, columnspan=COLUMNS, padx=20, pady=20, sticky="nsew")
+    timeline_frame.grid(row=10, column=1, rowspan=ROWS, columnspan=COLUMNS + 1, padx=20, pady=20, sticky="nsew")
 
+    # Add labels for each track (rows)
+    for row in range(ROWS):
+        track_label = tk.Label(timeline_frame, text=f"Track {row + 1}", anchor="e", width=10)
+        track_label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
+
+    # Create grid buttons
     for row in range(ROWS):
         for col in range(COLUMNS):
             cell_button = tk.Button(
                 timeline_frame,
                 bg="white",
-                width=10,
-                height=2,
+                width=5,
+                height=1,
                 command=lambda r=row, c=col: toggle_cell(r, c)
             )
-            cell_button.grid(row=row, column=col, padx=5, pady=5)
+            cell_button.grid(row=row, column=col + 1, padx=5, pady=5)
             # Store button reference in grid_state for easy toggling
             grid_state[row][col]["button"] = cell_button
 
@@ -89,4 +95,4 @@ def add_timeline_play_button(window):
     Adds a button to the main window to start timeline-based playback.
     """
     timeline_play_button = tk.Button(window, text="Play Timeline", command=start_timeline_playback)
-    timeline_play_button.grid(row=0, column=1, padx=10, pady=10)
+    timeline_play_button.grid(row=1, column=0, padx=10, pady=10)
